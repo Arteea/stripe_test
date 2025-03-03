@@ -1,0 +1,12 @@
+color = ''
+project-name = 'default'
+[default]
+account_id = 'acct_1PFzvlLhnNAGRjr0'
+device_name = 'LAPTOP-VH74GAH6'
+live_mode_api_key = 'rk_live_***********************************************************************************************lgcy'
+live_mode_key_expires_at = '2025-05-29'
+live_mode_pub_key = 'pk_live_51PFzvlLhnNAGRjr0m4i6SpwAo9GF96qImshETFV9ZLEVWzs9s76yXquBZnDMpalTEbxj0F0afAwAvlGYwLqzFafd000f2ky1bh'
+test_mode_api_key = 'rk_test_51PFzvlLhnNAGRjr0maA8VZ5nU9YIXgpgiQXTFpyyjZmViFRPVWZ1rTqhRTeSWydKUxYjiczaegTXBo2IzjPsFNdk00YGxUAYGM'
+test_mode_key_expires_at = '2025-05-29'
+test_mode_pub_key = 'pk_test_51PFzvlLhnNAGRjr0g6K3WBb5poGI0GUTlY9yVOeMwAU40AxYUkXRCuuH2ytrRxGZZQsxdzdhIuZPMuCfD3RiC6N800yXB0w2Hn'
+
