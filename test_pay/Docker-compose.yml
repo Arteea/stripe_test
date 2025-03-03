@@ -14,5 +14,5 @@ services:
       - "4242:4242"
     command: listen --forward-to http://webs:8000/webhook/
     volumes:
-      - ~/.config/stripe:/root/.config/stripe
+      - ./config/stripe:/root/.config/stripe
     restart: always
