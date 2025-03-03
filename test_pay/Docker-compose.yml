@@ -1,0 +1,18 @@
+services:
+  webs:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: python manage.py runserver 0.0.0.0:8000
+    restart: always
+  
+  stripe-cli:
+    image: stripe/stripe-cli
+    ports:
+      - "4242:4242"
+    command: listen --forward-to http://webs:8000/webhook/
+    volumes:
+      - ~/.config/stripe:/root/.config/stripe
+    restart: always

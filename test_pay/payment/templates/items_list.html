@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create order</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        /* Стиль для модального окна */
+        #payment-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #payment-form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 400px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        
+        #close-modal {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        #order-info {
+            margin-bottom: 20px;
+        }
+        
+        #order-info p {
+            margin: 5px 0;
+        }
+        
+        #card-element {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        
+        #submit-payment {
+            width: 100%;
+            padding: 10px;
+            background-color: #6772e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        #submit-payment:hover {
+            background-color: #5469d4;
+        }
+        
+        #payment-errors {
+            color: red;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Модальное окно для формы оплаты -->
+    <div id="payment-modal">
+        <div id="payment-form">
+            <button id="close-modal">✖</button>
+            <h2>Оплата заказа</h2>
+
+            <!-- Информация о заказе -->
+            <div id="order-info">
+                <p><strong>Номер заказа:</strong> <span id="order-id">-</span></p>
+                <p><strong>Цена:</strong> <span id="order-price">-</span></p>
+                <p><strong>Скидка:</strong> <span id="order-discount">-</span></p>
+                <p><strong>Налог:</strong> <span id="order-tax">-</span></p>
+                <p><strong>Итого к оплате:</strong> <span id="order-total">-</span></p>
+            </div>
+
+            <!-- Элемент для ввода данных карты -->
+            <div id="card-element"></div>
+
+            <!-- Кнопка оплаты -->
+            <button id="submit-payment">Оплатить</button>
+
+            <!-- Отображение ошибок -->
+            <div id="payment-errors"></div>
+        </div>
+    </div>
+
+    <!-- Список товаров -->
+    {% for item in item_list %}
+    <div>
+        <h1>{{ item.name }}</h1>
+        <p>{{ item.description }}</p>
+        <p>{{ item.price }}</p>
+        <input type="number" class="quantity" data-id="{{ item.id }}" value="1" min="1">
+        <button class="add-to-cart" data-id="{{ item.id }}">Add</button>
+    </div>
+    {% endfor %}
+
+    <!-- Кнопка для подтверждения заказа -->
+    <button id="perform-order">Perform order</button>
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function () {
+            var stripe = Stripe("pk_test_51PFzvlLhnNAGRjr0g6K3WBb5poGI0GUTlY9yVOeMwAU40AxYUkXRCuuH2ytrRxGZZQsxdzdhIuZPMuCfD3RiC6N800yXB0w2Hn");
+            var elements = stripe.elements(); // Инициализация Stripe Elements
+            var order = [];
+
+            // Создаём элемент для ввода карты
+            var cardElement = elements.create("card");
+            cardElement.mount("#card-element");
+
+            // Добавление товара в заказ
+            document.querySelectorAll(".add-to-cart").forEach(button => {
+                button.addEventListener("click", function () {
+                    var itemId = parseInt(this.getAttribute("data-id"));
+                    var quantityInput = document.querySelector(`.quantity[data-id='${itemId}']`);
+                    var quantity = parseInt(quantityInput.value, 10) || 1;
+
+                    var existingItem = order.find(item => item.id === itemId);
+                    if (existingItem) {
+                        existingItem.quantity += quantity;
+                    } else {
+                        order.push({
+                            id: itemId,
+                            quantity: quantity
+                        });
+                    }
+
+                    console.log("Текущий заказ:", order);
+                });
+            });
+
+            // Обработчик кнопки Perform Order
+            document.getElementById("perform-order").addEventListener("click", function () {
+                if (order.length === 0) {
+                    alert("Корзина пуста!");
+                    return;
+                }
+
+                // Отправляем данные о заказе на сервер
+                fetch("/create_order/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCSRFToken()
+                    },
+                    body: JSON.stringify({ items: order })
+                })
+                .then(response => response.json())
+                .then(orderData => {
+                    if (!orderData.order_id || !orderData.total_price) {
+                        throw new Error("Некорректные данные заказа");
+                    }
+
+                    console.log("✅ Заказ создан:", orderData);
+
+                    let orderId = orderData.order_id;
+                    let price = orderData.total_price; // Цена в центах
+        
+                    // Создаем PaymentIntent и передаем orderId в следующий then
+                    return fetch("/create_payment_intent/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": getCSRFToken()
+                        },
+                        body: JSON.stringify({ price: price, order_id: orderId })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.clientSecret || !data.price || !data.currency) {
+                            throw new Error("Ошибка получения данных от сервера");
+                        }
+        
+                        // Возвращаем данные PaymentIntent и orderId
+                        return {
+                            clientSecret: data.clientSecret,
+                            price: data.price,
+                            currency: data.currency,
+                            orderId: orderId,
+                            discount: data.discount,
+                            tax: data.tax
+                        };
+                    });
+                })
+                .then(data => {
+                    const { clientSecret, price, currency, orderId, discount, tax } = data;
+
+                    console.log("✅ Получен clientSecret:", clientSecret);
+                    console.log("✅ Цена:", price);
+                    console.log("✅ Валюта:", currency);
+                    console.log("✅ Discount:", discount);
+
+                    // Обновляем информацию в модальном окне
+                    document.getElementById("order-id").textContent = orderId; // Номер заказа
+                    document.getElementById("order-price").textContent = `${formatPrice(price, currency)}`; // Цена
+                    document.getElementById("order-discount").textContent = discount; // Скидка (если есть)
+                    document.getElementById("order-tax").textContent = tax; // Налог (если есть)
+                    document.getElementById("order-total").textContent = `${formatPrice(price, currency)}`; // Итоговая сумма
+
+                    // Показываем модальное окно
+                    document.getElementById("payment-modal").style.display = "flex";
+
+                    // Подтверждаем платеж
+                    document.getElementById("submit-payment").addEventListener("click", function() {
+                        stripe.confirmCardPayment(clientSecret, {
+                            payment_method: {
+                                card: cardElement,
+                            }
+                        }).then(function (result) {
+                            if (result.error) {
+                                console.error(result.error.message);
+                                document.getElementById("payment-errors").textContent = result.error.message;
+                            } else {
+                                if (result.paymentIntent.status === 'succeeded') {
+                                    alert("Платеж успешно завершен!");
+                                    order = []; // Очистить корзину
+                                    document.getElementById("payment-modal").style.display = "none"; // Закрыть модальное окно
+                                }
+                            }
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error("Ошибка:", error);
+                    alert("Ошибка: " + error.message);
+                });
+            });
+
+            // Закрытие модального окна
+            document.getElementById("close-modal").addEventListener("click", function () {
+                document.getElementById("payment-modal").style.display = "none";
+            });
+
+            // Функция для форматирования цены
+            function formatPrice(amount, currency) {
+                return new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: currency,
+                }).format(amount / 100); // Преобразуем из центов в валюту
+            }
+
+            // Функция для получения CSRF-токена
+            function getCSRFToken() {
+                let cookieValue = null;
+                let cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    let cookie = cookies[i].trim();
+                    if (cookie.startsWith("csrftoken=")) {
+                        cookieValue = cookie.substring("csrftoken=".length);
+                        break;
+                    }
+                }
+                return cookieValue;
+            }
+        });
+    </script>
+</body>
+</html>

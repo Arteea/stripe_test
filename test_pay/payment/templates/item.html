@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buy Item {{ item.name }}</title>
+    <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+    <h1>{{ item.name }}</h1>
+    <p>{{ item.description }}</p>
+    <p>{{ item.price }}</p>
+    <button id="buy-button">Buy</button>
+
+    <script type="text/javascript">
+        document.addEventListener("DOMContentLoaded", function() {
+            var stripe = Stripe("pk_test_51PFzvlLhnNAGRjr0g6K3WBb5poGI0GUTlY9yVOeMwAU40AxYUkXRCuuH2ytrRxGZZQsxdzdhIuZPMuCfD3RiC6N800yXB0w2Hn");
+            var buyButton = document.getElementById("buy-button");
+        
+            buyButton.addEventListener("click", function() {
+                var itemId = {{ item.id }};  // Получаем id товара из шаблона
+        
+                fetch(`/buy/${itemId}/`, {  // Передаём ID в URL
+                    method: "POST",
+                    headers: { 
+                        "X-CSRFToken": getCSRFToken(),  // CSRF-токен для защиты
+                        "Content-Type": "application/json"
+                    }
+                })
+                .then(response => response.json())  
+                .then(data => {
+                    if (data.error) {  
+                        console.error("Ошибка:", data.error);
+                        alert("Ошибка: " + data.error);
+                        return;
+                    }
+        
+                    console.log("Получен session_id:", data.session_id);
+        
+                    return stripe.redirectToCheckout({ sessionId: data.session_id });  // Перенаправление в Stripe
+                })
+                .catch(error => {
+                    console.error("Ошибка запроса:", error);
+                    alert("Ошибка: " + error.message);
+                });
+            });
+        
+            function getCSRFToken() {
+                let cookieValue = null;
+                let cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    let cookie = cookies[i].trim();
+                    if (cookie.startsWith("csrftoken=")) {
+                        cookieValue = cookie.substring("csrftoken=".length);
+                        break;
+                    }
+                }
+                return cookieValue;
+            }
+        });
+        
+    </script>
+</body>
+</html>
